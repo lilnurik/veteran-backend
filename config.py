@@ -20,5 +20,7 @@ class Config:
     ALLOWED_EXTENSIONS_PDF = {'pdf'}
     ALLOWED_EXTENSIONS_IMAGE = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
     
-    # CORS config
-    CORS_ORIGINS = ['http://localhost:3000', 'http://172.16.79.233:3000']
+    # CORS config - Allow all origins in development
+    CORS_ORIGINS = '*'  # Allow all origins for development
+    CORS_ALLOW_HEADERS = ['Content-Type', 'Authorization', 'Access-Control-Allow-Credentials']
+    CORS_SUPPORTS_CREDENTIALS = True

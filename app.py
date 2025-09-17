@@ -1,7 +1,7 @@
 from flask import Flask, jsonify
 from flask_cors import CORS
 from flask_jwt_extended import JWTManager
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import os
 
 # Import models and database
@@ -30,7 +30,10 @@ def create_app():
     # Initialize extensions
     db.init_app(app)
     jwt.init_app(app)
-    CORS(app, origins=app.config['CORS_ORIGINS'])
+    CORS(app, 
+         origins=app.config['CORS_ORIGINS'],
+         allow_headers=app.config['CORS_ALLOW_HEADERS'],
+         supports_credentials=app.config['CORS_SUPPORTS_CREDENTIALS'])
     
     # Register blueprints
     app.register_blueprint(auth_bp, url_prefix='/api/auth')
@@ -764,7 +767,7 @@ def create_app():
     def health_check():
         return jsonify({
             'status': 'healthy',
-            'timestamp': datetime.utcnow().isoformat() + 'Z',
+            'timestamp': datetime.now(timezone.utc).isoformat(),
             'version': '1.0.0'
         })
     
