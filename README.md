@@ -156,7 +156,18 @@ All API endpoints return consistent error responses:
 - Password hashing using Werkzeug
 - File type and size validation
 - Input validation and sanitization
-- CORS configuration
+- CORS configuration (permissive for development, should be restricted in production)
+
+## CORS Configuration
+
+The application is configured to allow cross-origin requests from any origin during development. This resolves common browser issues like `net::ERR_FAILED` when making requests from frontend applications.
+
+**For production deployment**, update the CORS configuration in `config.py` to restrict origins:
+
+```python
+# Production CORS config
+CORS_ORIGINS = ['https://yourdomain.com', 'https://www.yourdomain.com']
+```
 
 ## Development
 
@@ -166,6 +177,32 @@ export FLASK_ENV=development
 ```
 
 This enables debug mode with automatic reloading.
+
+## Troubleshooting
+
+### Common Frontend Integration Issues
+
+**Problem**: `net::ERR_FAILED` or CORS errors when accessing API from frontend
+
+**Solutions**:
+1. Ensure the backend server is running on the correct port (default: 5000)
+2. Check that your frontend is making requests to the correct URL
+3. The current CORS configuration allows all origins for development
+4. For HTTPS frontends, ensure the backend URL uses HTTPS or configure mixed content settings
+
+**Problem**: Authentication issues with JWT tokens
+
+**Solutions**:
+1. Ensure the `Authorization` header format is correct: `Bearer <token>`
+2. Check token expiration (default: 24 hours)
+3. Verify the JWT secret keys are properly configured
+
+**Problem**: File upload failures
+
+**Solutions**:
+1. Check file size limits (default: 10MB max)
+2. Verify file types are in allowed extensions
+3. Ensure proper `Content-Type: multipart/form-data` header
 
 ## Production Deployment
 
