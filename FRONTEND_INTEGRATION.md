@@ -1389,11 +1389,4 @@ function FileUploader({ filesService, onUploadComplete }) {
 
 ### Рекомендации для разработки:
 
-- Используйте TypeScript для типизации API responses
-- Реализуйте retry logic для network requests
-- Добавьте loading states для лучшего UX
-- Кэшируйте данные там где это возможно
-- Обрабатывайте offline состояния
-- Добавьте валидацию форм на frontend
-
 Для получения дополнительной информации обращайтесь к OpenAPI спецификации по адресу `/api/swagger.json`.
