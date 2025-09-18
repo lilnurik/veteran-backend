@@ -7,10 +7,11 @@ Flask-based REST API for managing laws, news, comrades search, and file uploads 
 - **Authentication**: JWT-based authentication system
 - **Laws Management**: CRUD operations for laws with multilingual support (Russian, Uzbek, English)
 - **News Management**: CRUD operations for news with multilingual support
-- **Comrades Search**: Search and manage veteran comrades information
+- **Comrades Search**: Search and manage veteran comrades information with Excel bulk import
 - **File Management**: Upload and manage PDF documents and images
 - **Swagger Documentation**: Interactive API documentation at `/docs/`
 - **Multi-language Support**: All content supports Russian, Uzbek, and English languages
+- **Excel Import**: Bulk import comrades data from Excel files
 
 ## Installation
 
@@ -32,6 +33,10 @@ The application will start on `http://localhost:5000`
 ## API Documentation
 
 Once the application is running, visit `http://localhost:5000/docs/` for interactive Swagger documentation.
+
+For detailed documentation on comrades search and Excel import functionality, see [COMRADES_API_DOCS.md](COMRADES_API_DOCS.md).
+
+Complete API documentation is available in [API_DOCS.md](API_DOCS.md).
 
 ## Default Admin Credentials
 
