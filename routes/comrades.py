@@ -3,8 +3,10 @@ from models import db
 from models.comrade import Comrade
 from utils.auth import token_required
 from utils.validators import validate_contact_info, validate_year_range
+from utils.excel_parser import ComradeExcelParser
 from datetime import datetime
 from sqlalchemy import or_, and_
+import os
 
 comrades_bp = Blueprint('comrades', __name__)
 
@@ -313,6 +315,193 @@ def delete_comrade(current_user, comrade_id):
         
     except Exception as e:
         db.session.rollback()
+        return jsonify({
+            'error': 'Internal Server Error',
+            'message': str(e),
+            'timestamp': datetime.utcnow().isoformat() + 'Z'
+        }), 500
+
+
+@comrades_bp.route('/bulk-import', methods=['POST'])
+@token_required
+def bulk_import_comrades(current_user):
+    """Import comrades from Excel file"""
+    try:
+        # Check if file is present
+        if 'file' not in request.files:
+            return jsonify({
+                'error': 'No file provided',
+                'message': 'Excel file is required for bulk import'
+            }), 400
+        
+        file = request.files['file']
+        
+        if file.filename == '':
+            return jsonify({
+                'error': 'No file selected',
+                'message': 'Please select an Excel file'
+            }), 400
+        
+        # Validate file extension
+        if not file.filename.lower().endswith(('.xlsx', '.xls')):
+            return jsonify({
+                'error': 'Invalid file format',
+                'message': 'Only Excel files (.xlsx, .xls) are supported'
+            }), 400
+        
+        # Save uploaded file temporarily
+        upload_dir = '/tmp'
+        os.makedirs(upload_dir, exist_ok=True)
+        temp_filename = f"comrades_import_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.xlsx"
+        temp_filepath = os.path.join(upload_dir, temp_filename)
+        
+        try:
+            file.save(temp_filepath)
+            
+            # Parse Excel file
+            parser = ComradeExcelParser()
+            comrades_data, errors, warnings = parser.parse_excel_file(temp_filepath)
+            
+            if errors:
+                return jsonify({
+                    'error': 'Import validation failed',
+                    'message': 'Найдены ошибки в файле',
+                    'details': {
+                        'errors': errors,
+                        'warnings': warnings
+                    },
+                    'timestamp': datetime.utcnow().isoformat() + 'Z'
+                }), 400
+            
+            # Import comrades to database
+            imported_count = 0
+            skipped_count = 0
+            import_errors = []
+            
+            for i, comrade_data in enumerate(comrades_data):
+                try:
+                    # Additional validation using existing validators
+                    validation_errors = {}
+                    
+                    # Validate year range
+                    year_from = comrade_data['yearOfServiceFrom']
+                    year_to = comrade_data.get('yearOfServiceTo')
+                    if year_from:
+                        validation_errors.update(validate_year_range(year_from, year_to))
+                    
+                    # Validate contact info if present
+                    if 'contactInfo' in comrade_data:
+                        validation_errors.update(validate_contact_info(comrade_data['contactInfo']))
+                    
+                    if validation_errors:
+                        import_errors.append(f"Строка {i + 1}: {', '.join(validation_errors.values())}")
+                        skipped_count += 1
+                        continue
+                    
+                    # Check for duplicates (same first name, last name, unit)
+                    existing = Comrade.query.filter_by(
+                        first_name=comrade_data['firstName'],
+                        last_name=comrade_data['lastName'],
+                        unit=comrade_data['unit']
+                    ).first()
+                    
+                    if existing:
+                        import_errors.append(f"Строка {i + 1}: Сослуживец уже существует ({comrade_data['firstName']} {comrade_data['lastName']}, {comrade_data['unit']})")
+                        skipped_count += 1
+                        continue
+                    
+                    # Create new comrade
+                    try:
+                        comrade = Comrade(
+                            first_name=comrade_data['firstName'],
+                            last_name=comrade_data['lastName'],
+                            middle_name=comrade_data.get('middleName'),
+                            unit=comrade_data['unit'],
+                            region=comrade_data['region'],
+                            year_of_service_from=comrade_data['yearOfServiceFrom'],
+                            year_of_service_to=comrade_data.get('yearOfServiceTo'),
+                            rank=comrade_data.get('rank'),
+                            additional_info=comrade_data.get('additionalInfo')
+                        )
+                        
+                        # Set contact info if provided
+                        if 'contactInfo' in comrade_data:
+                            comrade.set_contact_info(comrade_data['contactInfo'])
+                        
+                        db.session.add(comrade)
+                        imported_count += 1
+                        
+                    except Exception as db_error:
+                        import_errors.append(f"Строка {i + 1}: Database error - {str(db_error)}")
+                        skipped_count += 1
+                    
+                except Exception as e:
+                    import_errors.append(f"Строка {i + 1}: General error - {str(e)}")
+                    skipped_count += 1
+            
+            # Commit all changes
+            if imported_count > 0:
+                db.session.commit()
+            
+            response_data = {
+                'success': True,
+                'message': f'Импорт завершен. Импортировано: {imported_count}, пропущено: {skipped_count}',
+                'statistics': {
+                    'imported': imported_count,
+                    'skipped': skipped_count,
+                    'total_processed': len(comrades_data)
+                },
+                'timestamp': datetime.utcnow().isoformat() + 'Z'
+            }
+            
+            if warnings:
+                response_data['warnings'] = warnings
+            
+            if import_errors:
+                response_data['import_errors'] = import_errors
+            
+            return jsonify(response_data), 200
+            
+        finally:
+            # Clean up temporary file
+            if os.path.exists(temp_filepath):
+                os.remove(temp_filepath)
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({
+            'error': 'Internal Server Error',
+            'message': str(e),
+            'timestamp': datetime.utcnow().isoformat() + 'Z'
+        }), 500
+
+
+@comrades_bp.route('/bulk-import/sample', methods=['GET'])
+@token_required
+def download_sample_excel(current_user):
+    """Download sample Excel file for bulk import"""
+    try:
+        # Create sample file
+        sample_dir = '/tmp'
+        os.makedirs(sample_dir, exist_ok=True)
+        sample_filename = f"sample_comrades_import_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.xlsx"
+        sample_filepath = os.path.join(sample_dir, sample_filename)
+        
+        parser = ComradeExcelParser()
+        parser.create_sample_excel(sample_filepath)
+        
+        return jsonify({
+            'message': 'Sample file created successfully',
+            'download_instructions': 'Use the file path provided to download the sample Excel file',
+            'file_path': sample_filepath,
+            'columns': {
+                'required': parser.REQUIRED_COLUMNS,
+                'optional': parser.OPTIONAL_COLUMNS
+            },
+            'timestamp': datetime.utcnow().isoformat() + 'Z'
+        }), 200
+        
+    except Exception as e:
         return jsonify({
             'error': 'Internal Server Error',
             'message': str(e),
